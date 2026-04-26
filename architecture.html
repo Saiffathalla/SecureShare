@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>SecureShare — System Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:     #030d1a;
+      --blue:   #1a6cf6;
+      --cyan:   #00c6ff;
+      --green:  #10d48e;
+      --yellow: #f59e0b;
+      --red:    #f43f5e;
+      --white:  #fff;
+      --w60:    rgba(255,255,255,.6);
+      --w40:    rgba(255,255,255,.4);
+      --w10:    rgba(255,255,255,.1);
+      --w05:    rgba(255,255,255,.05);
+      --border: rgba(255,255,255,.12);
+      --font:   'Plus Jakarta Sans', sans-serif;
+      --mono:   'JetBrains Mono', monospace;
+    }
+    body { font-family: var(--font); background: var(--bg); color: var(--white); min-height: 100vh; padding: 2.5rem 2rem; }
+
+    h1 { font-size: 26px; font-weight: 800; letter-spacing: -.5px; margin-bottom: .4rem; }
+    .sub { font-size: 14px; color: var(--w60); margin-bottom: 2.5rem; }
+    .sub em { color: var(--cyan); font-style: normal; font-family: var(--mono); font-size: 12px; }
+
+    /* ── Layer grid ── */
+    .arch { display: flex; flex-direction: column; gap: 1.5rem; max-width: 960px; margin: 0 auto; }
+
+    .layer {
+      background: var(--w05); border: 1px solid var(--border);
+      border-radius: 16px; padding: 1.25rem 1.5rem;
+      position: relative; overflow: hidden;
+    }
+    .layer::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+      border-radius: 16px 0 0 16px;
+    }
+    .layer.client::before   { background: linear-gradient(#1a6cf6,#00c6ff); }
+    .layer.backend::before  { background: linear-gradient(#10d48e,#05f0a3); }
+    .layer.storage::before  { background: linear-gradient(#f59e0b,#fcd34d); }
+    .layer.security::before { background: linear-gradient(#f43f5e,#fb7185); }
+    .layer.external::before { background: linear-gradient(#8b5cf6,#a78bfa); }
+
+    .layer-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      margin-bottom: .75rem;
+    }
+    .layer.client   .layer-label { color: #3d8bff; }
+    .layer.backend  .layer-label { color: var(--green); }
+    .layer.storage  .layer-label { color: var(--yellow); }
+    .layer.security .layer-label { color: #fb7185; }
+    .layer.external .layer-label { color: #a78bfa; }
+
+    .boxes { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+    .box {
+      background: rgba(255,255,255,.06); border: 1px solid var(--border);
+      border-radius: 12px; padding: .9rem 1.1rem; flex: 1; min-width: 160px;
+      transition: .2s;
+    }
+    .box:hover { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.09); transform: translateY(-2px); }
+    .box-title { font-size: 13px; font-weight: 700; margin-bottom: .3rem; }
+    .box-file  { font-size: 11px; font-family: var(--mono); color: var(--cyan); margin-bottom: .4rem; }
+    .box-desc  { font-size: 11.5px; color: var(--w60); line-height: 1.5; }
+    .box-tags  { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .6rem; }
+    .tag {
+      font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 20px;
+      background: rgba(255,255,255,.08); color: var(--w60); border: 1px solid var(--border);
+    }
+    .tag.blue   { background: rgba(26,108,246,.15);  color: #3d8bff;    border-color: rgba(26,108,246,.3); }
+    .tag.green  { background: rgba(16,212,142,.15);  color: var(--green); border-color: rgba(16,212,142,.3); }
+    .tag.yellow { background: rgba(245,158,11,.15);  color: var(--yellow); border-color: rgba(245,158,11,.3); }
+    .tag.red    { background: rgba(244,63,94,.15);   color: #fb7185;    border-color: rgba(244,63,94,.3); }
+    .tag.purple { background: rgba(139,92,246,.15);  color: #a78bfa;    border-color: rgba(139,92,246,.3); }
+
+    /* ── Arrow connector ── */
+    .arrow {
+      display: flex; align-items: center; justify-content: center; gap: .75rem;
+      font-size: 11px; color: var(--w40); font-family: var(--mono); padding: .2rem 0;
+    }
+    .arrow::before, .arrow::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .arrow-icon { font-size: 16px; color: var(--w40); }
+
+    /* ── Data flow legend ── */
+    .legend { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 2rem; max-width: 960px; margin-left: auto; margin-right: auto; }
+    .leg { display: flex; align-items: center; gap: .5rem; font-size: 12px; color: var(--w60); }
+    .leg-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+    /* ── Data flow table ── */
+    .flow-table { max-width: 960px; margin: 2rem auto 0; }
+    .flow-title { font-size: 15px; font-weight: 700; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: .6rem 1rem; font-size: 11px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--w40); text-align: left; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid rgba(255,255,255,.05); }
+    tbody tr:hover { background: var(--w05); }
+    tbody td { padding: .75rem 1rem; font-size: 13px; }
+    .mono { font-family: var(--mono); font-size: 11px; color: var(--cyan); }
+  </style>
+</head>
+<body>
+
+  <h1>🔐 SecureShare — System Architecture</h1>
+  <p class="sub">Multi-layer architecture diagram · <em>v2.4.1</em> · All layers shown left-to-right within tiers</p>
+
+  <div class="arch">
+
+    <!-- CLIENT LAYER -->
+    <div class="layer client">
+      <div class="layer-label">🖥️ Client Layer — Browser (Vanilla JS, No Framework)</div>
+      <div class="boxes">
+        <div class="box">
+          <div class="box-title">Entry Point</div>
+          <div class="box-file">index.html</div>
+          <div class="box-desc">Loads Google Fonts, Chart.js CDN, then bootstraps all three JS modules in dependency order.</div>
+          <div class="box-tags"><span class="tag blue">HTML5</span><span class="tag">CDN deps</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Icons & Background</div>
+          <div class="box-file">frontend/js/icons-bg.js</div>
+          <div class="box-desc">SVG icon map exposed as <code>window.ICONS</code>. Particle canvas animation using HTML5 Canvas API.</div>
+          <div class="box-tags"><span class="tag blue">Canvas</span><span class="tag">SVG</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Application Logic</div>
+          <div class="box-file">frontend/js/app.js</div>
+          <div class="box-desc">State management, SPA router, 8 page renderers (Dashboard, Files, Upload, Admin, Config, Requirements, Analytics, Subscription), modal system.</div>
+          <div class="box-tags"><span class="tag blue">SPA</span><span class="tag blue">Router</span><span class="tag">Chart.js</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Styles</div>
+          <div class="box-file">frontend/css/styles.css</div>
+          <div class="box-desc">Full design system: CSS variables, responsive grid, dark theme, animations, component library (KPI cards, tables, modals, badges).</div>
+          <div class="box-tags"><span class="tag blue">CSS3</span><span class="tag">Responsive</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow"><span class="arrow-icon">↕</span> window.API calls (async functions, simulated REST)</div>
+
+    <!-- BACKEND / API LAYER -->
+    <div class="layer backend">
+      <div class="layer-label">⚙️ API Layer — Simulated REST Backend</div>
+      <div class="boxes">
+        <div class="box">
+          <div class="box-title">Auth Endpoints</div>
+          <div class="box-file">backend/api.js → API.auth</div>
+          <div class="box-desc">POST /auth/login, POST /auth/register. Returns user objects with role and plan.</div>
+          <div class="box-tags"><span class="tag green">login</span><span class="tag green">register</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">File Endpoints</div>
+          <div class="box-file">backend/api.js → API.files</div>
+          <div class="box-desc">GET /files, POST /files (upload), DELETE /files/:id, POST /files/:id/download (increments counter).</div>
+          <div class="box-tags"><span class="tag green">list</span><span class="tag green">upload</span><span class="tag green">delete</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">User Endpoints</div>
+          <div class="box-file">backend/api.js → API.users</div>
+          <div class="box-desc">GET /users, POST /users (add), DELETE /users/:id. Role-based (Admin / Manager / User).</div>
+          <div class="box-tags"><span class="tag green">CRUD</span><span class="tag green">RBAC</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Config & Billing</div>
+          <div class="box-file">backend/api.js → API.config / API.plans</div>
+          <div class="box-desc">GET+PATCH /config toggles. GET /plans, POST /subscriptions/upgrade, GET /billing (invoices).</div>
+          <div class="box-tags"><span class="tag green">config</span><span class="tag green">billing</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow"><span class="arrow-icon">↕</span> In-memory DB reads/writes (production: Supabase PostgreSQL)</div>
+
+    <!-- STORAGE LAYER -->
+    <div class="layer storage">
+      <div class="layer-label">🗄️ Data Layer — In-Memory (Production: Supabase + S3)</div>
+      <div class="boxes">
+        <div class="box">
+          <div class="box-title">Users Table</div>
+          <div class="box-file">DB.users[]</div>
+          <div class="box-desc">id, name, email, role, status, files, joined, plan. 4 seed users.</div>
+          <div class="box-tags"><span class="tag yellow">PostgreSQL</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Files Table</div>
+          <div class="box-file">DB.files[]</div>
+          <div class="box-desc">id, name, type, size, owner, status, encrypted, downloads, expiry, uploadedAt, link. 5 seed files.</div>
+          <div class="box-tags"><span class="tag yellow">Supabase Storage</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Config Store</div>
+          <div class="box-file">DB.configs{}</div>
+          <div class="box-desc">8 boolean keys: encryption, twoFactor, autoExpire, emailNotify, logging, backups, rateLimiting, geoBlocking.</div>
+          <div class="box-tags"><span class="tag yellow">Key-Value</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Plans & Billing</div>
+          <div class="box-file">DB.plans[] / DB.billing[]</div>
+          <div class="box-desc">3 plans (Free/Pro/Enterprise), 4 invoice records. Production: Stripe + PostgreSQL.</div>
+          <div class="box-tags"><span class="tag yellow">Stripe</span><span class="tag yellow">PostgreSQL</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow"><span class="arrow-icon">↕</span> Encryption / Auth middleware (production)</div>
+
+    <!-- SECURITY LAYER -->
+    <div class="layer security">
+      <div class="layer-label">🔒 Security Layer</div>
+      <div class="boxes">
+        <div class="box">
+          <div class="box-title">Encryption</div>
+          <div class="box-desc">AES-256-GCM at rest & in transit. Production: Web Crypto API + server-side key management.</div>
+          <div class="box-tags"><span class="tag red">AES-256</span><span class="tag red">Zero-knowledge</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Authentication</div>
+          <div class="box-desc">JWT session tokens. 2FA via TOTP. Production: Supabase Auth or Auth0.</div>
+          <div class="box-tags"><span class="tag red">JWT</span><span class="tag red">2FA / TOTP</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Access Control</div>
+          <div class="box-desc">Role-based (Admin / Manager / User). Time-limited share links with configurable expiry.</div>
+          <div class="box-tags"><span class="tag red">RBAC</span><span class="tag red">Expiring links</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Rate Limiting & Geo</div>
+          <div class="box-desc">API rate limiting toggle. Optional geo-blocking. Audit log for all events.</div>
+          <div class="box-tags"><span class="tag red">Rate limit</span><span class="tag red">Audit log</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXTERNAL -->
+    <div class="layer external">
+      <div class="layer-label">🌐 External Services (CDN / Third-party)</div>
+      <div class="boxes">
+        <div class="box">
+          <div class="box-title">Chart.js</div>
+          <div class="box-file">cdnjs.cloudflare.com</div>
+          <div class="box-desc">v4.4.1 — Line, bar, doughnut charts for dashboard & analytics pages.</div>
+          <div class="box-tags"><span class="tag purple">CDN</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Google Fonts</div>
+          <div class="box-file">fonts.googleapis.com</div>
+          <div class="box-desc">Plus Jakarta Sans (UI) + JetBrains Mono (code/monospace values).</div>
+          <div class="box-tags"><span class="tag purple">CDN</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Supabase (Prod)</div>
+          <div class="box-file">supabase.io</div>
+          <div class="box-desc">PostgreSQL database + object storage + authentication. Replaces the simulated in-memory backend.</div>
+          <div class="box-tags"><span class="tag purple">PostgreSQL</span><span class="tag purple">Auth</span></div>
+        </div>
+        <div class="box">
+          <div class="box-title">Stripe (Prod)</div>
+          <div class="box-file">stripe.com</div>
+          <div class="box-desc">Subscription billing, invoice management, card processing for Free/Pro/Enterprise plans.</div>
+          <div class="box-tags"><span class="tag purple">Billing</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.arch -->
+
+  <!-- DATA FLOW TABLE -->
+  <div class="flow-table">
+    <div class="flow-title">📡 API Data Flow Reference</div>
+    <table>
+      <thead>
+        <tr><th>Action</th><th>Frontend Call</th><th>Simulated Endpoint</th><th>Production Endpoint</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Sign in</td><td class="mono">API.auth.login()</td><td class="mono">in-memory check</td><td class="mono">POST /api/auth/login</td></tr>
+        <tr><td>Register</td><td class="mono">API.auth.register()</td><td class="mono">DB.users.push()</td><td class="mono">POST /api/auth/register</td></tr>
+        <tr><td>List files</td><td class="mono">API.files.list()</td><td class="mono">[...DB.files]</td><td class="mono">GET /api/files</td></tr>
+        <tr><td>Upload file</td><td class="mono">API.files.upload()</td><td class="mono">DB.files.unshift()</td><td class="mono">POST /api/files</td></tr>
+        <tr><td>Delete file</td><td class="mono">API.files.delete(id)</td><td class="mono">DB.files.splice()</td><td class="mono">DELETE /api/files/:id</td></tr>
+        <tr><td>Download file</td><td class="mono">API.files.download(id)</td><td class="mono">f.downloads++</td><td class="mono">POST /api/files/:id/download</td></tr>
+        <tr><td>List users</td><td class="mono">API.users.list()</td><td class="mono">[...DB.users]</td><td class="mono">GET /api/users</td></tr>
+        <tr><td>Add user</td><td class="mono">API.users.add()</td><td class="mono">DB.users.push()</td><td class="mono">POST /api/users</td></tr>
+        <tr><td>Delete user</td><td class="mono">API.users.delete(id)</td><td class="mono">DB.users.filter()</td><td class="mono">DELETE /api/users/:id</td></tr>
+        <tr><td>Get config</td><td class="mono">API.config.get()</td><td class="mono">{...DB.configs}</td><td class="mono">GET /api/config</td></tr>
+        <tr><td>Update config</td><td class="mono">API.config.patch(k,v)</td><td class="mono">DB.configs[k]=v</td><td class="mono">PATCH /api/config</td></tr>
+        <tr><td>List plans</td><td class="mono">API.plans.list()</td><td class="mono">DB.plans</td><td class="mono">GET /api/plans</td></tr>
+        <tr><td>Upgrade plan</td><td class="mono">API.plans.upgrade()</td><td class="mono">user.plan=planId</td><td class="mono">POST /api/subscriptions/upgrade</td></tr>
+        <tr><td>Billing history</td><td class="mono">API.plans.billing()</td><td class="mono">DB.billing</td><td class="mono">GET /api/billing</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+</html>

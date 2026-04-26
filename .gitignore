@@ -1,0 +1,50 @@
+# ── OS files ──────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Editor / IDE ───────────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# ── Node (if you add a build step later) ──────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.npm
+
+# ── Build output ───────────────────────────────────────────────────
+dist/
+build/
+out/
+.cache/
+.parcel-cache/
+
+# ── Environment & secrets ──────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# ── Logs ───────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Misc ───────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.swp
+*~
